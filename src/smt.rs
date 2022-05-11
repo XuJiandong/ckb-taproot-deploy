@@ -2,7 +2,7 @@ use ckb_hash::{Blake2b, Blake2bBuilder, BLAKE2B_LEN};
 use lazy_static::lazy_static;
 use sparse_merkle_tree::default_store::DefaultStore;
 use sparse_merkle_tree::traits::Hasher;
-use sparse_merkle_tree::{SparseMerkleTree, H256 as SmtH256};
+use sparse_merkle_tree::{CompiledMerkleProof, SparseMerkleTree, H256 as SmtH256};
 
 pub const BLAKE2B_KEY: &[u8] = &[];
 pub const PERSONALIZATION: &[u8] = b"ckb-default-hash";
@@ -91,4 +91,17 @@ pub fn build_smt_on_wl(hashes: &Vec<[u8; 32]>) -> (SmtH256, Vec<u8>) {
     assert!(test_on);
 
     return (root.clone(), compiled_proof.into());
+}
+
+pub fn verify_smt_on_wl(hashes: &Vec<[u8; 32]>, root: SmtH256, proof: Vec<u8>) -> bool {
+    let existing_pairs: Vec<(SmtH256, SmtH256)> = hashes
+        .clone()
+        .into_iter()
+        .map(|hash| (hash.into(), SMT_EXISTING.clone()))
+        .collect();
+
+    let compiled_proof = CompiledMerkleProof(proof);
+    compiled_proof
+        .verify::<CKBBlake2bHasher>(&root, existing_pairs)
+        .unwrap()
 }
