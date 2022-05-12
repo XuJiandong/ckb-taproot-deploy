@@ -1,12 +1,15 @@
+use ckb_taproot_deploy::config::JsonConfig;
+use ckb_taproot_deploy::unlock_taproot::unlock_taproot;
 use ckb_taproot_deploy::utils::hex2bin;
 use env_logger;
 use log::info;
 
 use rand::prelude::thread_rng;
 use rand::Rng;
-use std::{error::Error, str::FromStr};
+use std::error::Error;
+use std::str::FromStr;
 
-use ckb_sdk::HumanCapacity;
+use ckb_sdk::{Address, HumanCapacity};
 use ckb_types::H256;
 use clap::{ArgEnum, Args, Parser, Subcommand};
 
@@ -25,20 +28,10 @@ struct Cli {
     #[clap(long)]
     /// Dry run, don't send tx
     dry_run: bool,
-    /// CKB rpc url
-    #[clap(
-        long,
-        value_name = "URL",
-        default_value = "https://testnet.ckbapp.dev/rpc"
-    )]
-    ckb_rpc: String,
-    /// CKB indexer rpc url
-    #[clap(
-        long,
-        value_name = "URL",
-        default_value = "https://testnet.ckbapp.dev/indexer"
-    )]
-    ckb_indexer: String,
+
+    #[clap(long, default_value_t = String::from("taproot-config.json"))]
+    /// config file path in json format
+    config: String,
 }
 
 #[derive(Subcommand)]
@@ -54,13 +47,6 @@ enum Commands {
 struct GenerateKeys {}
 
 #[derive(Args)]
-#[clap(long_about = "Transfer CKB from taproot cells to Secp256k1 cells")]
-struct TransferSecp256k1 {
-    #[clap(long, value_name = "SECRET_KEY")]
-    secret_key: H256,
-}
-
-#[derive(Args)]
 #[clap(long_about = "Operations on schnorr keys, e.g. generate public key/address")]
 struct SchnorrOperation {
     #[clap(long, value_name = "SECRET_KEY")]
@@ -71,49 +57,67 @@ struct SchnorrOperation {
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ArgEnum)]
 enum OperationMode {
-    Address,
+    LockScriptArgs,
     Pubkey,
+}
+
+#[derive(Args)]
+#[clap(long_about = "Transfer CKB from taproot cells to Secp256k1 cells")]
+struct TransferSecp256k1 {
+    /// the secret key used in exec script. Schnorr secret key
+    #[clap(long, value_name = "KEY")]
+    execscript_key: H256,
+
+    #[clap(long)]
+    execscript_args: String,
+
+    #[clap(long, value_name = "SMT ROOT")]
+    smt_root: H256,
+
+    #[clap(long, value_name = "SMT PROOF")]
+    smt_proof: String,
+
+    #[clap(long, value_name = "TAPROOT INTERNAL KEY")]
+    taproot_internal_key: H256,
+
+    /// The receiver CKB address
+    #[clap(long, value_name = "ADDRESS")]
+    receiver: Address,
+
+    /// The capacity to transfer (unit: CKB, example: 102.43)
+    #[clap(long, value_name = "CKB")]
+    capacity: HumanCapacity,
 }
 
 #[derive(Args)]
 #[clap(long_about = "Transfer CKB from Secp256k1 cells to taproot cells")]
 struct TransferTaproot {
-    /// The sender private key (hex string)
+    /// The sender's secp256k1 private key(e.g. 0AEF01...)
     #[clap(long, value_name = "KEY")]
     sender_key: H256,
+
+    /// The 21-byte auth(receiver's schnorr public key hash)
+    /// Use `SchnorrOperation` lock-script-args` to get this address
+    #[clap(long, value_name = "ARGS")]
+    execscript_args: String,
+
+    /// taproot internal key (schnorr public key)
+    #[clap(long, value_name = "PUBLIC KEY")]
+    taproot_internal_key: H256,
 
     /// The capacity to transfer (unit: CKB, example: 102.43)
     #[clap(long, value_name = "CKB")]
     capacity: HumanCapacity,
-    // this is the example taproot script
-    // TODO: use default one on testnet
-    #[clap(long, default_value_t = H256::from_str("0123456789012345678901234567890123456789012345678901234567890123").unwrap())]
-    execscript_code_hash: H256,
-    #[clap(long, default_value_t = 1)]
-    execscript_hash_type: u8,
-    #[clap(long, value_name = "ARGS")]
-    execscript_args: String,
-    #[clap(long, value_name = "PUBLIC KEY")]
-    taproot_internal_key: H256,
-
-    // this is the taproot itself
-    // TODO: use default one on testnet
-    #[clap(long, default_value_t = H256::from_str("0123456789012345678901234567890123456789012345678901234567890123").unwrap())]
-    taproot_code_hash: H256,
-    #[clap(long, default_value_t = 1)]
-    taproot_hash_type: u8,
-    // we don't need taproot_args: it's calculated from `execscript_code_hash`,
-    // `execscript_hash_type`, `execscript_args` and `taproot_internal_key`
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     drop(env_logger::init());
     let cli = Cli::parse();
-    let config = Config {
-        dry_run: cli.dry_run,
-        ckb_indexer: cli.ckb_indexer,
-        ckb_rpc: cli.ckb_rpc,
-    };
+    let json_config = JsonConfig::load(cli.config)?;
+    let mut config: Config = json_config.convert();
+    // override from command line
+    config.dry_run = cli.dry_run;
+
     if config.dry_run {
         println!("dry_run enabled. The tx won't be sent.");
     }
@@ -121,12 +125,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         Commands::TransferTaproot(c) => {
             let execscript_args = hex2bin(c.execscript_args.as_ref())?;
             let receiver_script = create_taproot_script(
-                &c.execscript_code_hash,
-                c.execscript_hash_type,
+                &config.execscript_code_hash,
+                config.execscript_hash_type,
                 execscript_args.into(),
                 &c.taproot_internal_key,
-                &c.taproot_code_hash,
-                c.taproot_hash_type,
+                &config.taproot_code_hash,
+                config.taproot_hash_type,
             )?;
             info!("Transfer to Script = {}", receiver_script);
             unlock_secp256k1(&config, c.sender_key.clone(), receiver_script, c.capacity.0)?;
@@ -134,16 +138,32 @@ fn main() -> Result<(), Box<dyn Error>> {
             return Ok(());
         }
         Commands::SchnorrOperation(op) => match op.mode {
-            OperationMode::Address => {
+            OperationMode::LockScriptArgs => {
                 let addr = create_auth(&op.secret_key)?;
-                println!("Address = {}", addr);
+                println!("Lock script args = {}", addr);
             }
             OperationMode::Pubkey => {
                 let pubkey = create_pubkey(&op.secret_key)?;
                 println!("Public Key = {:x}", pubkey);
             }
         },
-        Commands::TransferSecp256k1(_c) => {}
+        Commands::TransferSecp256k1(c) => {
+            info!("Transfer to Address = {}", c.receiver);
+            config.execscript_args = hex2bin(&c.execscript_args).unwrap().into();
+
+            let smt_proof = hex2bin(&c.smt_proof).unwrap();
+            unlock_taproot(
+                &config,
+                c.execscript_key.clone(),
+                c.smt_root.clone(),
+                smt_proof.into(),
+                c.taproot_internal_key.clone(),
+                c.receiver.clone(),
+                c.capacity.0,
+            )?;
+            info!("unlock_taproot done.");
+            return Ok(());
+        }
         Commands::GenerateKeys(_) => {
             let mut rng = thread_rng();
             let mut buf = [0u8; 32];

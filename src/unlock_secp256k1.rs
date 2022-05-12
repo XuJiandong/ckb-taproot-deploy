@@ -51,12 +51,11 @@ pub fn unlock_secp256k1(
         println!("tx = {}", serde_json::to_string_pretty(&json_tx).unwrap());
     } else {
         info!("tx = {}", serde_json::to_string_pretty(&json_tx).unwrap());
-        let outputs_validator = Some(json_types::OutputsValidator::Passthrough);
         info!("Begin sending tx ...");
+        // let outputs_validator = Some(json_types::OutputsValidator::Passthrough);
         // let tx_hash = CkbRpcClient::new(config.ckb_rpc.as_str())
         //     .send_transaction(json_tx.inner, outputs_validator)
         //     .expect("send transaction");
-        // info!("tx_hash = {}", tx_hash);
         println!(">>> tx sent! <<<");
     }
     Ok(())

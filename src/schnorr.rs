@@ -22,7 +22,7 @@ use secp256k1::{
     All, Secp256k1,
 };
 
-use crate::unlock_taproot::{generate_witness_lock_placeholder, taproot_script_path_spending};
+use crate::unlock_taproot::{build_taproot_signature, generate_witness_lock_placeholder};
 
 /// A signer use schnorr raw key, the id is `Auth`.
 #[derive(Default, Clone)]
@@ -116,9 +116,9 @@ impl ScriptPathSpendingSigner {
         self.signer.as_ref()
     }
 
-    fn sign_tx_with_owner_id(
+    fn sign_tx_script_path_spending(
         &self,
-        owner_id: &[u8],
+        _owner_id: &[u8],
         tx: &TransactionView,
         script_group: &ScriptGroup,
         witness_lock_placeholder: Bytes,
@@ -134,9 +134,10 @@ impl ScriptPathSpendingSigner {
             .build();
         let placeholder_length = witness_lock_placeholder.len();
         let message = generate_message(&tx_new, script_group, witness_lock_placeholder)?;
-        let signature = self.signer.sign(owner_id, message.as_ref(), true, tx)?;
+        let id = &self.execscript_args.as_ref()[1..21];
+        let signature = self.signer.sign(id, message.as_ref(), false, tx)?;
 
-        let witness_lock = taproot_script_path_spending(
+        let witness_lock = build_taproot_signature(
             self.execscript_code_hash.clone(),
             self.execscript_hash_type,
             self.execscript_args.clone(),
@@ -185,7 +186,7 @@ impl ScriptSigner for ScriptPathSpendingSigner {
     ) -> Result<TransactionView, ScriptSignError> {
         let args = script_group.script.args().raw_data();
         let placeholder = generate_witness_lock_placeholder(&self.smt_proof);
-        self.sign_tx_with_owner_id(args.as_ref(), tx, script_group, placeholder)
+        self.sign_tx_script_path_spending(args.as_ref(), tx, script_group, placeholder)
     }
 }
 

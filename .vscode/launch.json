@@ -38,17 +38,45 @@
                 }
             },
             "env": {
-                "RUST_LOG": "debug"
+                "RUST_LOG": "info"
             },
-            "args": ["transfer-taproot", "--sender-key", "0123456789012345678901234567890123456789012345678901234567890123",
-                    "--example-code-hash", "0123456789012345678901234567890123456789012345678901234567890123",
-                    "--example-args", "0123456789012345678901234567890123456789012345678901234567890123456789012345678901",
-                    "--taproot-internal-key", "76fe8d33286b24062edd278ed312e23022d4241e587b64f8d208bd6f39e2a959",
-                    "--taproot-code-hash", "0123456789012345678901234567890123456789012345678901234567890123",
+            "args": ["transfer-taproot", 
+                    "--sender-key", "0123456789012345678901234567890123456789012345678901234567890123",
+                    "--execscript-args", "06f359a7bd37b68c434b04b1129697e1378af5d143",
+                    "--taproot-internal-key", "6a04ab98d9e4774ad806e302dddeb63bea16b5cb5f223ee77478e861bb583eb3",
                     "--capacity", "10000",
             ],
             "cwd": "${workspaceFolder}"
         },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "transfer to secp256k1",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=ckb-taproot-deploy",
+                    "--package=ckb-taproot-deploy"
+                ],
+                "filter": {
+                    "name": "ckb-taproot-deploy",
+                    "kind": "bin"
+                }
+            },
+            "env": {
+                "RUST_LOG": "info"
+            },
+            "args": ["transfer-secp256k1", 
+                    "--execscript-key", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                    "--execscript-args", "06f359a7bd37b68c434b04b1129697e1378af5d143",
+                    "--smt-root", "7fa9ddfe6c95f561f78457351b5bd43edcada132b258888c43c64f69173514b6",
+                    "--smt-proof", "4c4fff51f747dbecdc20bfc265cdadfe95f7b5d077ff1fad9806a27e099deb14189653ea750000000000000000000000000000000000000000000000000000000000000000",
+                    "--taproot-internal-key", "6a04ab98d9e4774ad806e302dddeb63bea16b5cb5f223ee77478e861bb583eb3",
+                    "--receiver", "ckt1qyqwykscqz8y3cgwa4c5jytzjv3c8hwar7msja6u7r",
+                    "--capacity", "10000",
+            ],
+            "cwd": "${workspaceFolder}"
+        },        
         {
             "type": "lldb",
             "request": "launch",

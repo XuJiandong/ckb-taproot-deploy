@@ -48,7 +48,7 @@ impl Display for Auth {
 }
 
 pub fn blake160(message: &[u8]) -> Vec<u8> {
-    ckb_hash::blake2b_256(message).into()
+    ckb_hash::blake2b_256(message)[0..20].into()
 }
 
 pub fn create_auth(secret_key: &H256) -> Result<Auth, Box<dyn Error>> {

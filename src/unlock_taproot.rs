@@ -1,24 +1,28 @@
+use log::{error, info};
+
 use std::{collections::HashMap, error::Error};
 
 use ckb_sdk::{
     traits::{
         DefaultCellCollector, DefaultCellDepResolver, DefaultHeaderDepResolver,
-        DefaultTransactionDependencyProvider, Signer,
+        DefaultTransactionDependencyProvider,
     },
     tx_builder::{transfer::CapacityTransferBuilder, CapacityBalancer, TxBuilder},
     unlock::ScriptUnlocker,
     Address, CkbRpcClient, ScriptId,
 };
+
+use ckb_jsonrpc_types as json_types;
+
 use ckb_types::{
     bytes::Bytes,
     core::{BlockView, ScriptHashType, TransactionView},
-    h256,
     packed::{Byte32, CellOutput, Script, WitnessArgs},
     prelude::*,
     H256,
 };
-use log::error;
 use secp256k1::{
+    constants::{SCHNORRSIG_PUBLIC_KEY_SIZE, SCHNORRSIG_SIGNATURE_SIZE},
     schnorrsig::{KeyPair, PublicKey},
     Secp256k1,
 };
@@ -30,20 +34,49 @@ use crate::{
     schnorr::{SchnorrSigner, ScriptPathSpendingSigner, TaprootScriptUnlocker},
     smt::{build_smt_on_wl, verify_smt_on_wl},
     taproot_molecule,
-    utils::ckb_tagged_hash_tweak,
+    utils::{as_hex, ckb_tagged_hash_tweak},
     Auth, IDENTITY_FLAGS_SCHNORR,
 };
 
-// TODO:
-pub const TAPROOT_CODE_HASH: H256 =
-    h256!("0x9bd7e06f3ecf4be0f2fcd2188b23f1b9fcc88e5d4b65a8637b17723bbda3cce8");
-pub const TAPROOT_HASH_TYPE: u8 = 1;
-
-pub fn script_path_spending(
+pub fn unlock_taproot(
     config: &Config,
-    execscript_code_hash: H256,
-    execscript_hash_type: u8,
-    execscript_args: Bytes,
+    execscript_key: H256,
+    smt_root: H256,
+    smt_proof: Bytes,
+    taproot_internal_key: H256,
+
+    receiver: Address,
+    capacity: u64,
+) -> Result<(), Box<dyn Error>> {
+    let tx = transfer_secp256k1(
+        config,
+        execscript_key,
+        smt_root,
+        smt_proof,
+        taproot_internal_key,
+        receiver,
+        capacity,
+    )?;
+    // Send transaction
+    let json_tx = json_types::TransactionView::from(tx);
+    if config.dry_run {
+        println!("tx = {}", serde_json::to_string_pretty(&json_tx).unwrap());
+    } else {
+        info!("tx = {}", serde_json::to_string_pretty(&json_tx).unwrap());
+        let outputs_validator = Some(json_types::OutputsValidator::Passthrough);
+        info!("Begin sending tx ...");
+        // let tx_hash = CkbRpcClient::new(config.ckb_rpc.as_str())
+        //     .send_transaction(json_tx.inner, outputs_validator)
+        //     .expect("send transaction");
+        // info!("tx_hash = {}", tx_hash);
+        println!(">>> tx sent! <<<");
+    }
+    Ok(())
+}
+
+/// Transfer CKB from taproot cells to secp256k1 cells
+pub fn transfer_secp256k1(
+    config: &Config,
     execscript_key: H256,
     smt_root: H256,
     smt_proof: Bytes,
@@ -57,10 +90,10 @@ pub fn script_path_spending(
     let auth = create_auth(&execscript_key)?;
     let auth: Vec<u8> = auth.into();
     let auth: Bytes = auth.into();
-    if auth != execscript_args {
+    if auth != config.execscript_args {
         error!(
             "auth != execscript_args: {:?} vs {:?}",
-            auth, execscript_args
+            auth, config.execscript_args
         );
         return Err(format!("Incorrect execscript key or execscript args").into());
     }
@@ -68,29 +101,29 @@ pub fn script_path_spending(
     let signer = SchnorrSigner::new_with_secret_keys(vec![key_pair], secp);
     let script_path_sending_signer = ScriptPathSpendingSigner::new(
         Box::new(signer),
-        execscript_code_hash.clone(),
-        execscript_hash_type,
-        execscript_args.clone(),
+        config.execscript_code_hash.clone(),
+        config.execscript_hash_type,
+        config.execscript_args.clone(),
         taproot_internal_key.clone(),
-        smt_root,
+        smt_root.clone(),
         smt_proof.clone(),
     );
     let taproot_unlocker = TaprootScriptUnlocker::from(script_path_sending_signer);
 
-    let script_id = ScriptId::new_type(TAPROOT_CODE_HASH.clone());
+    let script_id = ScriptId::new_type(config.taproot_code_hash.clone());
     let mut unlockers = HashMap::default();
     unlockers.insert(
         script_id,
         Box::new(taproot_unlocker) as Box<dyn ScriptUnlocker>,
     );
 
-    let sender = create_taproot_script(
-        &execscript_code_hash,
-        execscript_hash_type,
-        execscript_args,
+    let taproot_sender = create_taproot_script(
+        &config.execscript_code_hash,
+        config.execscript_hash_type,
+        config.execscript_args.clone(),
         &taproot_internal_key,
-        &TAPROOT_CODE_HASH,
-        TAPROOT_HASH_TYPE,
+        &config.taproot_code_hash,
+        config.taproot_hash_type,
     )?;
 
     let witness_lock_placeholder = generate_witness_lock_placeholder(&smt_proof);
@@ -98,7 +131,7 @@ pub fn script_path_spending(
     let placeholder_witness = WitnessArgs::new_builder()
         .lock(Some(witness_lock_placeholder).pack())
         .build();
-    let balancer = CapacityBalancer::new_simple(sender, placeholder_witness, 1000);
+    let balancer = CapacityBalancer::new_simple(taproot_sender, placeholder_witness, 1000);
 
     // Build:
     //   * CellDepResolver
@@ -134,7 +167,7 @@ pub fn script_path_spending(
     Ok(tx)
 }
 
-pub fn taproot_script_path_spending(
+pub fn build_taproot_signature(
     execscript_code_hash: H256,
     execscript_hash_type: u8,
     execscript_args: Bytes,
@@ -209,8 +242,10 @@ table TaprootScriptPath {
 Only the smt_proof is with variable length.
 */
 pub fn generate_witness_lock_placeholder(smt_proof: &Bytes) -> Bytes {
+    // auth, 21 bytes
     let args: Bytes = vec![0; 21].into();
-    let args2: Bytes = vec![0; 32 + 64].into();
+    // schnorr signature is composed by pubkey(32 bytes) + sig(64 bytes)
+    let args2: Bytes = vec![0; SCHNORRSIG_PUBLIC_KEY_SIZE + SCHNORRSIG_SIGNATURE_SIZE].into();
 
     let smt_root = Byte32::default();
     let y_parity = 0u8;
@@ -256,7 +291,17 @@ pub fn create_taproot_script(
     let hash = script.calc_script_hash();
     let mut hash32 = [0u8; 32];
     hash32.copy_from_slice(hash.as_slice());
-    let (smt_root, _smt_proof) = build_smt_on_wl(&vec![hash32]);
+    let (smt_root, smt_proof) = build_smt_on_wl(&vec![hash32]);
+    info!("leaf on smt tree = {}", as_hex(&hash32));
+    info!("smt_root = {}", as_hex(smt_root.as_slice()));
+    info!("smt_proof = {}", as_hex(&smt_proof));
+
+    // self test
+    let success = verify_smt_on_wl(&vec![hash32], smt_root.clone(), smt_proof.clone());
+    if !success {
+        error!("SMT verify failed, {} is not on SMT tree", script);
+        return Err(format!("SMT verify failed").into());
+    }
 
     let mut tagged_msg = [0u8; 64];
     tagged_msg[..32].copy_from_slice(taproot_internal_key.as_ref());

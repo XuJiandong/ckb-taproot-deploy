@@ -85,3 +85,11 @@ pub fn ckb_tagged_hash_tweak(msg: &[u8]) -> Vec<u8> {
     let hash = ckb_hash::blake2b_256(m.as_slice());
     hash.into()
 }
+
+pub fn as_hex(msg: &[u8]) -> String {
+    let mut res: String = String::new();
+    for i in msg {
+        res += format!("{:02x}", i).as_str();
+    }
+    res
+}

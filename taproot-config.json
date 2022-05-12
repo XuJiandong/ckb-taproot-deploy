@@ -1,0 +1,8 @@
+{
+    "ckb_rpc": "https://testnet.ckbapp.dev/rpc",
+    "ckb_indexer": "https://testnet.ckbapp.dev/indexer",
+    "execscript_code_hash": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+    "execscript_hash_type": 1,
+    "taproot_code_hash":    "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
+    "taproot_hash_type": 1
+}
