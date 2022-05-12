@@ -40,14 +40,14 @@ Lock script args = 06f359a7bd37b68c434b04b1129697e1378af5d143
 
 ### Scenario
 
-Alice wants to send some coin to Bob. She don't know Bob will accept it. If Bob
-doesn't take the coin, Alice want to get the coin back. The taproot on CKB can
+Alice wants to send some coin to Bob. She doesn't know Bob will accept it. If Bob
+doesn't take the coin, Alice wants to get the coin back. The taproot on CKB can
 solve it by following steps:
 
 
-1. Alice get the schnorr public key of Bob
+1. Alice gets the schnorr public key of Bob
 2. Alice transfer some CKB to cell locked by taproot lock script. The lock script args is a hash of taproot output key.
-   Alice aso embed bob's schnorr public key  in taproot output key.
+   Alice also embeds bob's schnorr public key into taproot output key.
 3. There are 2 possible results:
     - If Bob doesn't accept CKB in several weeks. Alice can reclaim CKB by taproot output secret key. It uses key path spending.
-    - Or Bob accept the coin by script path spending.
+    - Or Bob accepts the coin by script path spending.
