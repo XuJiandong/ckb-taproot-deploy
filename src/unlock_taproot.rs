@@ -16,8 +16,8 @@ use ckb_jsonrpc_types as json_types;
 
 use ckb_types::{
     bytes::Bytes,
-    core::{BlockView, ScriptHashType, TransactionView},
-    packed::{Byte32, CellOutput, Script, WitnessArgs},
+    core::{BlockView, DepType, ScriptHashType, TransactionView},
+    packed::{Byte32, CellDep, CellOutput, OutPoint, Script, WitnessArgs},
     prelude::*,
     H256,
 };
@@ -63,8 +63,8 @@ pub fn unlock_taproot(
         println!("tx = {}", serde_json::to_string_pretty(&json_tx).unwrap());
     } else {
         info!("tx = {}", serde_json::to_string_pretty(&json_tx).unwrap());
-        let outputs_validator = Some(json_types::OutputsValidator::Passthrough);
         info!("Begin sending tx ...");
+        // let outputs_validator = Some(json_types::OutputsValidator::Passthrough);
         // let tx_hash = CkbRpcClient::new(config.ckb_rpc.as_str())
         //     .send_transaction(json_tx.inner, outputs_validator)
         //     .expect("send transaction");
@@ -131,7 +131,7 @@ pub fn transfer_secp256k1(
     let placeholder_witness = WitnessArgs::new_builder()
         .lock(Some(witness_lock_placeholder).pack())
         .build();
-    let balancer = CapacityBalancer::new_simple(taproot_sender, placeholder_witness, 1000);
+    let balancer = CapacityBalancer::new_simple(taproot_sender.clone(), placeholder_witness, 1000);
 
     // Build:
     //   * CellDepResolver
@@ -142,7 +142,31 @@ pub fn transfer_secp256k1(
     let cell_dep_resolver = {
         let genesis_block = ckb_client.get_block_by_number(0.into())?.unwrap();
         // TODO: add taproot script and execscript script
-        DefaultCellDepResolver::from_genesis(&BlockView::from(genesis_block))?
+        let mut resolver = DefaultCellDepResolver::from_genesis(&BlockView::from(genesis_block))?;
+        let script_id = ScriptId::from(&taproot_sender);
+        let out_point = OutPoint::new_builder()
+            .tx_hash(config.taproot_celldep_tx.pack())
+            .index(config.taproot_celldep_index.pack())
+            .build();
+        let cell_dep = CellDep::new_builder()
+            .out_point(out_point)
+            .dep_type(DepType::Code.into())
+            .build();
+        resolver.insert(script_id, cell_dep, "taproot script".into());
+        let script_id = ScriptId {
+            code_hash: config.execscript_code_hash.clone(),
+            hash_type: config.execscript_hash_type.try_into()?,
+        };
+        let out_point = OutPoint::new_builder()
+            .tx_hash(config.execscript_celldep_tx.pack())
+            .index(config.taproot_celldep_index.pack())
+            .build();
+        let cell_dep = CellDep::new_builder()
+            .out_point(out_point)
+            .dep_type(DepType::Code.into())
+            .build();
+        resolver.insert(script_id, cell_dep, "exec script".into());
+        resolver
     };
     let header_dep_resolver = DefaultHeaderDepResolver::new(config.ckb_rpc.as_str());
     let mut cell_collector =

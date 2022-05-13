@@ -1,8 +1,13 @@
 {
     "ckb_rpc": "https://testnet.ckbapp.dev/rpc",
     "ckb_indexer": "https://testnet.ckbapp.dev/indexer",
-    "execscript_code_hash": "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC",
+    "execscript_code_hash": "0x21282e5faa63e29abbf45c66c3ffb04133f77e30862b23a1de8f94dbb2b6d74f",
     "execscript_hash_type": 1,
-    "taproot_code_hash":    "DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD",
-    "taproot_hash_type": 1
+    "execscript_celldep_tx": "0x1e0e6b90cc9411eaca2028f895134f2efb917fcb3b0bf3777b5ed5b0f2d37838",
+    "execscript_celldep_index": 0,
+    "taproot_code_hash":    "0x1f353d462ef0cb327a3d75f2f5d181b33f053b19b2122edfee9b4371d8d7783b",
+    "taproot_hash_type": 1,
+    "taproot_celldep_tx": "0x3db6958e3accc28258010f325a8f9c8c7998a187d75ba38db0006518b374f6a6",
+    "taproot_celldep_index": 0
 }
+

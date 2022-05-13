@@ -12,8 +12,13 @@ pub struct JsonConfig {
     pub ckb_indexer: String,
     pub execscript_code_hash: String,
     pub execscript_hash_type: u8,
+    pub execscript_celldep_tx: String,
+    pub execscript_celldep_index: u32,
+
     pub taproot_code_hash: String,
     pub taproot_hash_type: u8,
+    pub taproot_celldep_tx: String,
+    pub taproot_celldep_index: u32,
 }
 
 pub struct Config {
@@ -22,8 +27,14 @@ pub struct Config {
     pub execscript_code_hash: H256,
     pub execscript_hash_type: u8,
     pub execscript_args: Bytes,
+    pub execscript_celldep_tx: H256,
+    pub execscript_celldep_index: u32,
+
     pub taproot_code_hash: H256,
     pub taproot_hash_type: u8,
+    pub taproot_celldep_tx: H256,
+    pub taproot_celldep_index: u32,
+
     pub dry_run: bool,
 }
 
@@ -35,8 +46,12 @@ impl Default for Config {
             execscript_code_hash: Default::default(),
             execscript_hash_type: 1,
             execscript_args: Default::default(),
+            execscript_celldep_index: 0,
+            execscript_celldep_tx: Default::default(),
             taproot_code_hash: Default::default(),
             taproot_hash_type: 1,
+            taproot_celldep_tx: Default::default(),
+            taproot_celldep_index: 0,
             dry_run: false,
         }
     }

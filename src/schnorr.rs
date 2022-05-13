@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, error::Error};
 
 use ckb_hash::blake2b_256;
 use ckb_sdk::{
@@ -19,7 +19,7 @@ use ckb_types::{
 use log::error;
 use secp256k1::{
     schnorrsig::{KeyPair, PublicKey},
-    All, Secp256k1,
+    All, Secp256k1, SecretKey,
 };
 
 use crate::unlock_taproot::{build_taproot_signature, generate_witness_lock_placeholder};
@@ -230,4 +230,11 @@ impl ScriptUnlocker for TaprootScriptUnlocker {
         let placeholder = generate_witness_lock_placeholder(&self.signer.smt_proof);
         fill_witness_lock(tx, script_group, placeholder)
     }
+}
+
+pub fn create_pubkey(secret_key: &H256) -> Result<PublicKey, Box<dyn Error>> {
+    let secp = Secp256k1::new();
+    let secret_key = SecretKey::from_slice(secret_key.as_ref()).expect("private key");
+    let key_pair = KeyPair::from_secret_key(&secp, secret_key);
+    Ok(PublicKey::from_keypair(&secp, &key_pair))
 }

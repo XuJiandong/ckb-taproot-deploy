@@ -7,15 +7,16 @@ use log::info;
 use rand::prelude::thread_rng;
 use rand::Rng;
 use std::error::Error;
-use std::str::FromStr;
 
 use ckb_sdk::{Address, HumanCapacity};
 use ckb_types::H256;
 use clap::{ArgEnum, Args, Parser, Subcommand};
 
+use ckb_taproot_deploy::create_auth;
+use ckb_taproot_deploy::schnorr::create_pubkey;
 use ckb_taproot_deploy::unlock_secp256k1::unlock_secp256k1;
 use ckb_taproot_deploy::{config::Config, unlock_taproot::create_taproot_script};
-use ckb_taproot_deploy::{create_auth, create_pubkey};
+
 use secp256k1::schnorrsig::{KeyPair, PublicKey};
 use secp256k1::{Secp256k1, SecretKey};
 

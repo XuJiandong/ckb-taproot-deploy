@@ -7,8 +7,8 @@ pub mod unlock_taproot;
 pub mod utils;
 
 use ckb_types::H256;
-use secp256k1::schnorrsig::{KeyPair, PublicKey, Signature};
-use secp256k1::{All, Message, Secp256k1, SecretKey};
+use secp256k1::schnorrsig::{KeyPair, PublicKey};
+use secp256k1::{Secp256k1, SecretKey};
 use std::error::Error;
 use std::fmt::Display;
 
@@ -63,11 +63,4 @@ pub fn create_auth(secret_key: &H256) -> Result<Auth, Box<dyn Error>> {
     };
 
     Ok(identity)
-}
-
-pub fn create_pubkey(secret_key: &H256) -> Result<PublicKey, Box<dyn Error>> {
-    let secp = Secp256k1::new();
-    let secret_key = SecretKey::from_slice(secret_key.as_ref()).expect("private key");
-    let key_pair = KeyPair::from_secret_key(&secp, secret_key);
-    Ok(PublicKey::from_keypair(&secp, &key_pair))
 }

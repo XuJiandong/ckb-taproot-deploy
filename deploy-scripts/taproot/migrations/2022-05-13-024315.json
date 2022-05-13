@@ -1,0 +1,13 @@
+{
+  "cell_recipes": [
+    {
+      "name": "taproot",
+      "tx_hash": "0x3db6958e3accc28258010f325a8f9c8c7998a187d75ba38db0006518b374f6a6",
+      "index": 0,
+      "occupied_capacity": 11547800000000,
+      "data_hash": "0x64c75c455d9f20ad2cb505ffa6771045770c2dccca6a02f5fc530ac88c8a069c",
+      "type_id": "0x1f353d462ef0cb327a3d75f2f5d181b33f053b19b2122edfee9b4371d8d7783b"
+    }
+  ],
+  "dep_group_recipes": []
+}
