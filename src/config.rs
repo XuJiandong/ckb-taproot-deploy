@@ -4,20 +4,18 @@ use bytes::Bytes;
 use ckb_types::H256;
 use serde::{Deserialize, Serialize};
 
-use crate::utils::hex2bin;
-
 #[derive(Serialize, Deserialize)]
 pub struct JsonConfig {
     pub ckb_rpc: String,
     pub ckb_indexer: String,
-    pub execscript_code_hash: String,
+    pub execscript_code_hash: H256,
     pub execscript_hash_type: u8,
-    pub execscript_celldep_tx: String,
+    pub execscript_celldep_tx: H256,
     pub execscript_celldep_index: u32,
 
-    pub taproot_code_hash: String,
+    pub taproot_code_hash: H256,
     pub taproot_hash_type: u8,
-    pub taproot_celldep_tx: String,
+    pub taproot_celldep_tx: H256,
     pub taproot_celldep_index: u32,
 }
 
@@ -66,17 +64,17 @@ impl JsonConfig {
         Ok(json)
     }
     pub fn convert(self) -> Config {
-        let execscript_code_hash = hex2bin(&self.execscript_code_hash).unwrap();
-        let taproot_code_hash = hex2bin(&self.taproot_code_hash).unwrap();
-        let execscript_code_hash: [u8; 32] = execscript_code_hash.try_into().unwrap();
-        let taproot_code_hash: [u8; 32] = taproot_code_hash.try_into().unwrap();
         Config {
             ckb_rpc: self.ckb_rpc,
             ckb_indexer: self.ckb_indexer,
-            execscript_code_hash: execscript_code_hash.into(),
+            execscript_code_hash: self.execscript_code_hash,
             execscript_hash_type: self.execscript_hash_type,
-            taproot_code_hash: taproot_code_hash.into(),
+            execscript_celldep_tx: self.execscript_celldep_tx,
+            execscript_celldep_index: self.execscript_celldep_index,
+            taproot_code_hash: self.taproot_code_hash,
             taproot_hash_type: self.taproot_hash_type,
+            taproot_celldep_tx: self.taproot_celldep_tx,
+            taproot_celldep_index: self.taproot_celldep_index,
             ..Default::default()
         }
     }

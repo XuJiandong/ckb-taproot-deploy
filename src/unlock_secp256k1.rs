@@ -19,8 +19,8 @@ use ckb_sdk::{
 };
 use ckb_types::{
     bytes::Bytes,
-    core::{BlockView, DepType, ScriptHashType, TransactionView},
-    packed::{CellDep, CellOutput, OutPoint, Script, WitnessArgs},
+    core::{BlockView, ScriptHashType, TransactionView},
+    packed::{CellOutput, Script, WitnessArgs},
     prelude::*,
     H256,
 };
@@ -52,11 +52,11 @@ pub fn unlock_secp256k1(
     } else {
         info!("tx = {}", serde_json::to_string_pretty(&json_tx).unwrap());
         info!("Begin sending tx ...");
-        // let outputs_validator = Some(json_types::OutputsValidator::Passthrough);
-        // let tx_hash = CkbRpcClient::new(config.ckb_rpc.as_str())
-        //     .send_transaction(json_tx.inner, outputs_validator)
-        //     .expect("send transaction");
-        println!(">>> tx sent! <<<");
+        let outputs_validator = Some(json_types::OutputsValidator::Passthrough);
+        let tx_hash = CkbRpcClient::new(config.ckb_rpc.as_str())
+            .send_transaction(json_tx.inner, outputs_validator)
+            .expect("send transaction");
+        println!(">>> tx ({})sent! <<<", tx_hash);
     }
     Ok(())
 }
@@ -92,32 +92,7 @@ fn build_transfer_tx(
     let mut ckb_client = CkbRpcClient::new(config.ckb_rpc.as_str());
     let cell_dep_resolver = {
         let genesis_block = ckb_client.get_block_by_number(0.into())?.unwrap();
-        let mut resolver = DefaultCellDepResolver::from_genesis(&BlockView::from(genesis_block))?;
-
-        let script_id = ScriptId::from(&sender);
-        let out_point = OutPoint::new_builder()
-            .tx_hash(config.taproot_celldep_tx.pack())
-            .index(config.taproot_celldep_index.pack())
-            .build();
-        let cell_dep = CellDep::new_builder()
-            .out_point(out_point)
-            .dep_type(DepType::Code.into())
-            .build();
-        resolver.insert(script_id, cell_dep, "taproot script".into());
-        let script_id = ScriptId {
-            code_hash: config.execscript_code_hash.clone(),
-            hash_type: config.execscript_hash_type.try_into()?,
-        };
-        let out_point = OutPoint::new_builder()
-            .tx_hash(config.execscript_celldep_tx.pack())
-            .index(config.taproot_celldep_index.pack())
-            .build();
-        let cell_dep = CellDep::new_builder()
-            .out_point(out_point)
-            .dep_type(DepType::Code.into())
-            .build();
-        resolver.insert(script_id, cell_dep, "exec script".into());
-        resolver
+        DefaultCellDepResolver::from_genesis(&BlockView::from(genesis_block))?
     };
     let header_dep_resolver = DefaultHeaderDepResolver::new(config.ckb_rpc.as_str());
     let mut cell_collector =

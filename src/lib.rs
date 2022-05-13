@@ -2,6 +2,7 @@ pub mod config;
 pub mod schnorr;
 pub mod smt;
 pub mod taproot_molecule;
+pub mod tx_builder;
 pub mod unlock_secp256k1;
 pub mod unlock_taproot;
 pub mod utils;

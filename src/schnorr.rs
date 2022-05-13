@@ -1,6 +1,5 @@
 use std::{collections::HashMap, error::Error};
 
-use ckb_hash::blake2b_256;
 use ckb_sdk::{
     traits::{Signer, SignerError, TransactionDependencyProvider},
     unlock::{
@@ -14,7 +13,7 @@ use ckb_types::{
     core::TransactionView,
     packed::{self, WitnessArgs},
     prelude::*,
-    H160, H256,
+    H256,
 };
 use log::error;
 use secp256k1::{
@@ -27,33 +26,29 @@ use crate::unlock_taproot::{build_taproot_signature, generate_witness_lock_place
 /// A signer use schnorr raw key, the id is `Auth`.
 #[derive(Default, Clone)]
 pub struct SchnorrSigner {
-    keys: HashMap<H160, KeyPair>,
+    keys: HashMap<Bytes, KeyPair>,
     secp: Secp256k1<All>,
 }
 
 impl SchnorrSigner {
-    pub fn new(keys: HashMap<H160, KeyPair>, secp: Secp256k1<All>) -> Self {
+    pub fn new(keys: HashMap<Bytes, KeyPair>, secp: Secp256k1<All>) -> Self {
         Self { keys, secp }
     }
-    pub fn new_with_secret_keys(keys: Vec<KeyPair>, secp: Secp256k1<All>) -> SchnorrSigner {
+    pub fn new_with_secret_key(key: KeyPair, args: Bytes, secp: Secp256k1<All>) -> SchnorrSigner {
         let mut signer = SchnorrSigner::default();
         signer.secp = secp;
-        for key in keys {
-            signer.add_secret_key(key);
-        }
+        signer.add_secret_key(key, args);
         signer
     }
-    pub fn add_secret_key(&mut self, key: KeyPair) {
-        let pubkey = PublicKey::from_keypair(&self.secp, &key);
-        let hash160 = H160::from_slice(&blake2b_256(&pubkey.serialize()[..])[0..20])
-            .expect("Generate hash(H160) from pubkey failed");
-        self.keys.insert(hash160, key);
+    pub fn add_secret_key(&mut self, key: KeyPair, args: Bytes) {
+        self.keys.insert(args, key);
     }
 }
 
 impl Signer for SchnorrSigner {
     fn match_id(&self, id: &[u8]) -> bool {
-        id.len() == 20 && self.keys.contains_key(&H160::from_slice(id).unwrap())
+        let id = Bytes::copy_from_slice(id);
+        self.keys.contains_key(&id)
     }
 
     fn sign(
@@ -73,9 +68,16 @@ impl Signer for SchnorrSigner {
             )));
         }
         let msg = secp256k1::Message::from_slice(message).expect("Convert to message failed");
-        let key_pair = self.keys.get(&H160::from_slice(id).unwrap()).unwrap();
+        let id = Bytes::copy_from_slice(id);
+        let key_pair = self.keys.get(&id).unwrap();
         let sig = self.secp.schnorrsig_sign_no_aux_rand(&msg, key_pair);
-        Ok(Bytes::copy_from_slice(sig.as_ref()))
+        let pubkey = PublicKey::from_keypair(&self.secp, &key_pair);
+
+        let mut final_sig = vec![];
+        final_sig.extend(pubkey.serialize());
+        final_sig.extend(sig.as_ref());
+        assert_eq!(final_sig.len(), 32 + 64);
+        Ok(final_sig.into())
     }
 }
 
@@ -118,7 +120,7 @@ impl ScriptPathSpendingSigner {
 
     fn sign_tx_script_path_spending(
         &self,
-        _owner_id: &[u8],
+        owner_id: &[u8],
         tx: &TransactionView,
         script_group: &ScriptGroup,
         witness_lock_placeholder: Bytes,
@@ -134,8 +136,7 @@ impl ScriptPathSpendingSigner {
             .build();
         let placeholder_length = witness_lock_placeholder.len();
         let message = generate_message(&tx_new, script_group, witness_lock_placeholder)?;
-        let id = &self.execscript_args.as_ref()[1..21];
-        let signature = self.signer.sign(id, message.as_ref(), false, tx)?;
+        let signature = self.signer.sign(owner_id, message.as_ref(), false, tx)?;
 
         let witness_lock = build_taproot_signature(
             self.execscript_code_hash.clone(),
@@ -176,7 +177,7 @@ impl ScriptPathSpendingSigner {
 
 impl ScriptSigner for ScriptPathSpendingSigner {
     fn match_args(&self, args: &[u8]) -> bool {
-        args.len() == 20 && self.signer.match_id(args)
+        self.signer.match_id(args)
     }
 
     fn sign_tx(

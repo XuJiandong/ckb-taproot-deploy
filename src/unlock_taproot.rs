@@ -7,7 +7,7 @@ use ckb_sdk::{
         DefaultCellCollector, DefaultCellDepResolver, DefaultHeaderDepResolver,
         DefaultTransactionDependencyProvider,
     },
-    tx_builder::{transfer::CapacityTransferBuilder, CapacityBalancer, TxBuilder},
+    tx_builder::{CapacityBalancer, TxBuilder},
     unlock::ScriptUnlocker,
     Address, CkbRpcClient, ScriptId,
 };
@@ -34,6 +34,7 @@ use crate::{
     schnorr::{SchnorrSigner, ScriptPathSpendingSigner, TaprootScriptUnlocker},
     smt::{build_smt_on_wl, verify_smt_on_wl},
     taproot_molecule,
+    tx_builder::TaprootTransferBuilder,
     utils::{as_hex, ckb_tagged_hash_tweak},
     Auth, IDENTITY_FLAGS_SCHNORR,
 };
@@ -64,11 +65,11 @@ pub fn unlock_taproot(
     } else {
         info!("tx = {}", serde_json::to_string_pretty(&json_tx).unwrap());
         info!("Begin sending tx ...");
-        // let outputs_validator = Some(json_types::OutputsValidator::Passthrough);
-        // let tx_hash = CkbRpcClient::new(config.ckb_rpc.as_str())
-        //     .send_transaction(json_tx.inner, outputs_validator)
-        //     .expect("send transaction");
-        // info!("tx_hash = {}", tx_hash);
+        let outputs_validator = Some(json_types::OutputsValidator::Passthrough);
+        let tx_hash = CkbRpcClient::new(config.ckb_rpc.as_str())
+            .send_transaction(json_tx.inner, outputs_validator)
+            .expect("send transaction");
+        info!("tx_hash = {}", tx_hash);
         println!(">>> tx sent! <<<");
     }
     Ok(())
@@ -97,8 +98,17 @@ pub fn transfer_secp256k1(
         );
         return Err(format!("Incorrect execscript key or execscript args").into());
     }
+    let taproot_sender = create_taproot_script(
+        &config.execscript_code_hash,
+        config.execscript_hash_type,
+        config.execscript_args.clone(),
+        &taproot_internal_key,
+        &config.taproot_code_hash,
+        config.taproot_hash_type,
+    )?;
 
-    let signer = SchnorrSigner::new_with_secret_keys(vec![key_pair], secp);
+    let signer =
+        SchnorrSigner::new_with_secret_key(key_pair, taproot_sender.args().raw_data(), secp);
     let script_path_sending_signer = ScriptPathSpendingSigner::new(
         Box::new(signer),
         config.execscript_code_hash.clone(),
@@ -117,15 +127,6 @@ pub fn transfer_secp256k1(
         Box::new(taproot_unlocker) as Box<dyn ScriptUnlocker>,
     );
 
-    let taproot_sender = create_taproot_script(
-        &config.execscript_code_hash,
-        config.execscript_hash_type,
-        config.execscript_args.clone(),
-        &taproot_internal_key,
-        &config.taproot_code_hash,
-        config.taproot_hash_type,
-    )?;
-
     let witness_lock_placeholder = generate_witness_lock_placeholder(&smt_proof);
     // Build CapacityBalancer
     let placeholder_witness = WitnessArgs::new_builder()
@@ -133,15 +134,18 @@ pub fn transfer_secp256k1(
         .build();
     let balancer = CapacityBalancer::new_simple(taproot_sender.clone(), placeholder_witness, 1000);
 
+    // The cell deps for exec script can be deduced from scripts
+    // we need to add it manually
+    let mut extra_celldeps: Vec<CellDep> = vec![];
     // Build:
     //   * CellDepResolver
     //   * HeaderDepResolver
     //   * CellCollector
     //   * TransactionDependencyProvider
+
     let mut ckb_client = CkbRpcClient::new(config.ckb_rpc.as_str());
     let cell_dep_resolver = {
         let genesis_block = ckb_client.get_block_by_number(0.into())?.unwrap();
-        // TODO: add taproot script and execscript script
         let mut resolver = DefaultCellDepResolver::from_genesis(&BlockView::from(genesis_block))?;
         let script_id = ScriptId::from(&taproot_sender);
         let out_point = OutPoint::new_builder()
@@ -165,6 +169,9 @@ pub fn transfer_secp256k1(
             .out_point(out_point)
             .dep_type(DepType::Code.into())
             .build();
+        let (sighash_dep, _) = resolver.sighash_dep().unwrap();
+        extra_celldeps.push(sighash_dep.clone());
+        extra_celldeps.push(cell_dep.clone());
         resolver.insert(script_id, cell_dep, "exec script".into());
         resolver
     };
@@ -178,7 +185,7 @@ pub fn transfer_secp256k1(
         .lock(Script::from(&receiver))
         .capacity(capacity.pack())
         .build();
-    let builder = CapacityTransferBuilder::new(vec![(output, Bytes::default())]);
+    let builder = TaprootTransferBuilder::new(vec![(output, Bytes::default())], extra_celldeps);
     let (tx, still_locked_groups) = builder.build_unlocked(
         &mut cell_collector,
         &cell_dep_resolver,
@@ -210,6 +217,13 @@ pub fn build_taproot_signature(
     let hash = script.calc_script_hash();
     let mut hash32 = [0u8; 32];
     hash32.copy_from_slice(hash.as_slice());
+
+    info!(
+        "build_taproot_signature leaf on smt tree = {}",
+        as_hex(&hash32)
+    );
+    info!("build_taproot_signature smt_root = {}", as_hex(&smt_root.0));
+    info!("build_taproot_signature smt_proof = {}", as_hex(&smt_proof));
 
     let success = verify_smt_on_wl(&vec![hash32], smt_root.0.into(), smt_proof.clone().to_vec());
     if !success {
