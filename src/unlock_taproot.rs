@@ -69,7 +69,7 @@ pub fn unlock_taproot(
         let tx_hash = CkbRpcClient::new(config.ckb_rpc.as_str())
             .send_transaction(json_tx.inner, outputs_validator)
             .expect("send transaction");
-        info!("tx_hash = {}", tx_hash);
+        println!("tx_hash = {}", tx_hash);
         println!(">>> tx sent! <<<");
     }
     Ok(())
@@ -307,7 +307,9 @@ pub fn generate_witness_lock_placeholder(smt_proof: &Bytes) -> Bytes {
         .set(Some(script_path))
         .build();
     let builder = taproot_molecule::TaprootLockWitnessLock::new_builder().script_path(script_path2);
-    builder.build().as_bytes()
+    let b = builder.build().as_bytes();
+    let res = vec![0u8; b.len()];
+    res.into()
 }
 
 pub fn create_taproot_script(
