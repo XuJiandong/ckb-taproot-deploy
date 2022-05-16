@@ -1,4 +1,6 @@
-use std::error::Error;
+use std::{error::Error, fs, io::Write};
+
+use ckb_jsonrpc_types::Transaction;
 
 pub(crate) const DICT_HEX_ERROR: u8 = u8::max_value();
 pub(crate) static DICT_HEX_LO: [u8; 256] = {
@@ -101,4 +103,13 @@ pub fn as_hex_switch_endian(msg: &[u8]) -> String {
         res += format!("{:02x}", msg[len - 1 - i]).as_str();
     }
     res
+}
+
+pub fn dump_tx(file_name: String, tx: Transaction) -> Result<(), Box<dyn Error>> {
+    let content = serde_json::to_string_pretty(&tx).map_err(|err| err.to_string())?;
+    let mut out_file = fs::File::create(&file_name).map_err(|err| err.to_string())?;
+    out_file
+        .write_all(content.as_bytes())
+        .map_err(|err| err.to_string())?;
+    Ok(())
 }

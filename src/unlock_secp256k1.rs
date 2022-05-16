@@ -1,6 +1,7 @@
 use log::info;
 
 use crate::config::Config;
+use crate::utils::dump_tx;
 use std::collections::HashMap;
 use std::error::Error;
 
@@ -48,7 +49,11 @@ pub fn unlock_secp256k1(
     // Send transaction
     let json_tx = json_types::TransactionView::from(tx);
     if config.dry_run {
-        println!("tx = {}", serde_json::to_string_pretty(&json_tx).unwrap());
+        dump_tx("tx.json".into(), json_tx.inner)?;
+        println!("written to tx.json");
+        println!("You can invoke ckb-debugger to run it locally. For example:");
+        println!("$ ckb-cli mock-tx dump --tx-file tx.json --output-file mock-tx.json");
+        println!("$ ckb-debugger --tx-file mock-tx.json --cell-index 0 --cell-type input --script-group-type lock")
     } else {
         info!("tx = {}", serde_json::to_string_pretty(&json_tx).unwrap());
         info!("Begin sending tx ...");

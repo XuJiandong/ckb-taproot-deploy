@@ -40,12 +40,12 @@ Lock script args = 06f359a7bd37b68c434b04b1129697e1378af5d143
 ### Scenario
 
 Alice wants to send some coins to Bob. She doesn't know whether Bob will accept
-it. If Bob doesn't take the coin, Alice wants to get the coin back. The taproot
+it. If Bob doesn't take the coin, Alice wants to get the coin back. The Taproot
 on CKB can solve it by following steps:
 
 1. Alice fetches the schnorr public key of Bob
-2. Alice transfers some CKB to cell locked by taproot lock script. The lock
-   script args is a hash of taproot output key. Alice has already embedded bob's
+2. Alice transfers some coin to cell locked by taproot lock script. The lock
+   script args is a hash of taproot output key. Alice has already embedded Bob's
    schnorr public key into taproot output key. [An example transaction on
    testnet](https://pudge.explorer.nervos.org/transaction/0xa8067fac193537a4c80d5146a2e0cdfcb8254b9cec941480b56e581eccf0780a)
 
@@ -56,7 +56,7 @@ on CKB can solve it by following steps:
       on
       testnet](https://pudge.explorer.nervos.org/transaction/0x6e1bc6ddf551d927b44f345ee3dcd3b7a126d02f4eb88100f008595f850801a4)
 
-Check out [CKB Taproot Deploy tool](https://github.com/XuJiandong/ckb-taproot-deploy) for more information.
+Check out [CKB Taproot Deploy Tool](https://github.com/XuJiandong/ckb-taproot-deploy) for more information.
 
 ### Shell Scripts Used
 

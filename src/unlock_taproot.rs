@@ -36,7 +36,7 @@ use crate::{
     smt::{build_smt_on_wl, verify_smt_on_wl},
     taproot_molecule,
     tx_builder::TaprootTransferBuilder,
-    utils::{as_hex, ckb_tagged_hash_tweak},
+    utils::{as_hex, ckb_tagged_hash_tweak, dump_tx},
     Auth, IDENTITY_FLAGS_SCHNORR,
 };
 
@@ -62,7 +62,11 @@ pub fn unlock_taproot(
     // Send transaction
     let json_tx = json_types::TransactionView::from(tx);
     if config.dry_run {
-        println!("tx = {}", serde_json::to_string_pretty(&json_tx).unwrap());
+        dump_tx("tx.json".into(), json_tx.inner)?;
+        println!("written to tx.json");
+        println!("You can invoke ckb-debugger to run it locally. For example:");
+        println!("$ ckb-cli mock-tx dump --tx-file tx.json --output-file mock-tx.json");
+        println!("$ ckb-debugger --tx-file mock-tx.json --cell-index 0 --cell-type input --script-group-type lock")
     } else {
         info!("tx = {}", serde_json::to_string_pretty(&json_tx).unwrap());
         info!("Begin sending tx ...");
