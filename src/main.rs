@@ -1,6 +1,7 @@
 use ckb_taproot_deploy::config::JsonConfig;
 use ckb_taproot_deploy::unlock_taproot::unlock_taproot;
-use ckb_taproot_deploy::utils::hex2bin;
+use ckb_taproot_deploy::utils::{as_hex, as_hex_switch_endian, hex2bin};
+use ckb_taproot_deploy::Auth;
 use env_logger;
 use log::info;
 
@@ -12,8 +13,7 @@ use ckb_sdk::{Address, HumanCapacity};
 use ckb_types::H256;
 use clap::{ArgEnum, Args, Parser, Subcommand};
 
-use ckb_taproot_deploy::create_auth;
-use ckb_taproot_deploy::schnorr::create_pubkey;
+use ckb_taproot_deploy::script_path_spending::create_pubkey;
 use ckb_taproot_deploy::unlock_secp256k1::unlock_secp256k1;
 use ckb_taproot_deploy::{config::Config, unlock_taproot::create_taproot_script};
 
@@ -52,6 +52,10 @@ struct GenerateKeys {}
 struct SchnorrOperation {
     #[clap(long, value_name = "SECRET_KEY")]
     secret_key: H256,
+
+    #[clap(long)]
+    tweak: Option<H256>,
+
     #[clap(long, arg_enum)]
     mode: OperationMode,
 }
@@ -60,6 +64,7 @@ struct SchnorrOperation {
 enum OperationMode {
     LockScriptArgs,
     Pubkey,
+    GenerateTaprootOutputKey,
 }
 
 #[derive(Args)]
@@ -132,6 +137,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 &c.taproot_internal_key,
                 &config.taproot_code_hash,
                 config.taproot_hash_type,
+                true,
             )?;
             info!("Transfer to Script = {}", receiver_script);
             unlock_secp256k1(&config, c.sender_key.clone(), receiver_script, c.capacity.0)?;
@@ -140,12 +146,41 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         Commands::SchnorrOperation(op) => match op.mode {
             OperationMode::LockScriptArgs => {
-                let addr = create_auth(&op.secret_key)?;
+                let addr: Auth = op.secret_key.clone().try_into()?;
                 println!("Lock script args = {}", addr);
             }
             OperationMode::Pubkey => {
                 let pubkey = create_pubkey(&op.secret_key)?;
                 println!("Public Key = {:x}", pubkey);
+            }
+            OperationMode::GenerateTaprootOutputKey => {
+                if op.tweak.is_none() {
+                    println!("error, must provide tweak");
+                }
+                let secp = Secp256k1::new();
+                let secret_key = SecretKey::from_slice(op.secret_key.as_ref()).expect("secret key");
+                let mut key_pair = KeyPair::from_secret_key(&secp, secret_key);
+                let tweak = op.tweak.as_ref();
+                key_pair
+                    .tweak_add_assign(&secp, tweak.unwrap().as_ref())
+                    .unwrap();
+
+                let pubkey = PublicKey::from_keypair(&secp, &key_pair);
+
+                let key_pair = unsafe { (*key_pair.as_ptr()).underlying_bytes() };
+                // let res = taproot_tweak_secret(op.secret_key.clone(), tweak.unwrap().clone());
+                // println!("(Manually) Taproot Output Secret Key = {}", res);
+                // double check it
+                println!("Taproot Output Secret Key = {}", as_hex(&key_pair[0..32]));
+                println!(
+                    "Taproot Output Public Key (x, y) = {}",
+                    as_hex_switch_endian(&key_pair[32..64])
+                );
+                // pubkey.serialize() is in big endian
+                println!(
+                    "Taproot Output Public Key (x-only)= {}",
+                    as_hex(&pubkey.serialize())
+                );
             }
         },
         Commands::TransferSecp256k1(c) => {

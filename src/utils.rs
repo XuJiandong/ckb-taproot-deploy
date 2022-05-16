@@ -93,3 +93,12 @@ pub fn as_hex(msg: &[u8]) -> String {
     }
     res
 }
+
+pub fn as_hex_switch_endian(msg: &[u8]) -> String {
+    let mut res: String = String::new();
+    let len = msg.len();
+    for i in 0..len {
+        res += format!("{:02x}", msg[len - 1 - i]).as_str();
+    }
+    res
+}

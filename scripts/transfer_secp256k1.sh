@@ -1,5 +1,5 @@
 #!/bin/bash
-target/debug/ckb-taproot-deploy transfer-secp256k1  \
+target/debug/ckb-taproot-deploy --dry-run transfer-secp256k1  \
     --execscript-key bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
     --execscript-args 06f359a7bd37b68c434b04b1129697e1378af5d143 \
     --smt-root 4b1913da999e0050c1ff1a8425811d20db8c94f2f34b0b80084ac5dd1bea3366 \

@@ -1,6 +1,5 @@
 # ckb-taproot-deploy
-A tool to deploy CKB Taproot scripts (https://github.com/nervosnetwork/ckb-production-scripts/pull/58).
-
+A tool to deploy Taproot on CKB scripts (https://github.com/nervosnetwork/ckb-production-scripts/pull/57).
 
 
 ### Used Parameters
@@ -40,14 +39,36 @@ Lock script args = 06f359a7bd37b68c434b04b1129697e1378af5d143
 
 ### Scenario
 
-Alice wants to send some coin to Bob. She doesn't know Bob will accept it. If Bob
-doesn't take the coin, Alice wants to get the coin back. The taproot on CKB can
-solve it by following steps:
+Alice wants to send some coins to Bob. She doesn't know whether Bob will accept
+it. If Bob doesn't take the coin, Alice wants to get the coin back. The taproot
+on CKB can solve it by following steps:
 
+1. Alice fetches the schnorr public key of Bob
+2. Alice transfers some CKB to cell locked by taproot lock script. The lock
+   script args is a hash of taproot output key. Alice has already embedded bob's
+   schnorr public key into taproot output key. [An example transaction on
+   testnet](https://pudge.explorer.nervos.org/transaction/0xa8067fac193537a4c80d5146a2e0cdfcb8254b9cec941480b56e581eccf0780a)
 
-1. Alice gets the schnorr public key of Bob
-2. Alice transfer some CKB to cell locked by taproot lock script. The lock script args is a hash of taproot output key.
-   Alice also embeds bob's schnorr public key into taproot output key.
 3. There are 2 possible results:
-    - If Bob doesn't accept CKB in several weeks. Alice can reclaim CKB by taproot output secret key. It uses key path spending.
-    - Or Bob accepts the coin by script path spending.
+    - If Bob doesn't accept CKB in several weeks. Alice can reclaim coins by
+      taproot output secret key. It uses key path spending.
+    - Or Bob accepts the coin by script path spending. [An example transaction
+      on
+      testnet](https://pudge.explorer.nervos.org/transaction/0x6e1bc6ddf551d927b44f345ee3dcd3b7a126d02f4eb88100f008595f850801a4)
+
+Check out [CKB Taproot Deploy tool](https://github.com/XuJiandong/ckb-taproot-deploy) for more information.
+
+### Shell Scripts Used
+
+* Alice transfers CKB to Bob. [Script](scripts/transfer_taproot.sh)
+* Bob Receives CKB by script path spending. [Script](scripts/transfer_secp256k1.sh)
+
+If you want to configure your own transaction, please check out
+[taproot-config.json](./taproot-config.json). If you want to deploy your own
+taproot scripts, please check out [deploy-scripts](./deploy-scripts/). There
+will be at least 2 scripts to deploy: One is taproot script itself and some
+other one is taproot script. They are built from
+[taproot_lock.c](https://github.com/nervosnetwork/ckb-production-scripts/blob/taproot-lock-audit/c/taproot_lock.c)
+and
+[example_script.c](https://github.com/nervosnetwork/ckb-production-scripts/blob/taproot-lock-audit/tests/taproot_lock/example_script.c).
+
