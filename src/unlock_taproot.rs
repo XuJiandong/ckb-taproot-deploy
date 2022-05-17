@@ -17,7 +17,7 @@ use ckb_jsonrpc_types as json_types;
 use ckb_types::{
     bytes::Bytes,
     core::{BlockView, DepType, ScriptHashType, TransactionView},
-    packed::{self, Byte32, BytesOpt, CellDep, CellOutput, OutPoint, Script, WitnessArgs},
+    packed::{Byte32, CellDep, CellOutput, OutPoint, Script, WitnessArgs},
     prelude::*,
     H256,
 };
@@ -59,6 +59,35 @@ pub fn unlock_taproot(
         receiver,
         capacity,
     )?;
+    // Send transaction
+    let json_tx = json_types::TransactionView::from(tx);
+    if config.dry_run {
+        dump_tx("tx.json".into(), json_tx.inner)?;
+        println!("written to tx.json");
+        println!("You can invoke ckb-debugger to run it locally. For example:");
+        println!("$ ckb-cli mock-tx dump --tx-file tx.json --output-file mock-tx.json");
+        println!("$ ckb-debugger --tx-file mock-tx.json --cell-index 0 --cell-type input --script-group-type lock")
+    } else {
+        info!("tx = {}", serde_json::to_string_pretty(&json_tx).unwrap());
+        info!("Begin sending tx ...");
+        let outputs_validator = Some(json_types::OutputsValidator::Passthrough);
+        let tx_hash = CkbRpcClient::new(config.ckb_rpc.as_str())
+            .send_transaction(json_tx.inner, outputs_validator)
+            .expect("send transaction");
+        println!("tx_hash = {}", tx_hash);
+        println!(">>> tx sent! <<<");
+    }
+    Ok(())
+}
+
+// key path spending
+pub fn unlock_taproot2(
+    config: &Config,
+    sender_key: &H256,
+    receiver: Address,
+    capacity: u64,
+) -> Result<(), Box<dyn Error>> {
+    let tx = transfer_secp256k1_2(config, &sender_key, receiver, capacity)?;
     // Send transaction
     let json_tx = json_types::TransactionView::from(tx);
     if config.dry_run {
@@ -225,7 +254,7 @@ pub fn transfer_secp256k1_2(
             .args(args.pack())
             .build()
     };
-    let signer = SchnorrSigner::new_with_secret_key(key_pair, auth.blake160.into(), secp);
+    let signer = SchnorrSigner::new_with_secret_key(key_pair, auth.into(), secp);
     let key_path_spending_signer = KeyPathSpending::new(Box::new(signer));
     let taproot_unlocker = key_path_spending::TaprootScriptUnlocker::from(key_path_spending_signer);
 
@@ -266,22 +295,9 @@ pub fn transfer_secp256k1_2(
             .dep_type(DepType::Code.into())
             .build();
         resolver.insert(script_id, cell_dep, "taproot script".into());
-        let script_id = ScriptId {
-            code_hash: config.execscript_code_hash.clone(),
-            hash_type: config.execscript_hash_type.try_into()?,
-        };
-        let out_point = OutPoint::new_builder()
-            .tx_hash(config.execscript_celldep_tx.pack())
-            .index(config.taproot_celldep_index.pack())
-            .build();
-        let cell_dep = CellDep::new_builder()
-            .out_point(out_point)
-            .dep_type(DepType::Code.into())
-            .build();
+
         let (sighash_dep, _) = resolver.sighash_dep().unwrap();
         extra_celldeps.push(sighash_dep.clone());
-        extra_celldeps.push(cell_dep.clone());
-        resolver.insert(script_id, cell_dep, "exec script".into());
         resolver
     };
     let header_dep_resolver = DefaultHeaderDepResolver::new(config.ckb_rpc.as_str());
@@ -374,12 +390,9 @@ pub fn build_taproot_signature(
 
 // key path spending
 pub fn build_taproot_signature2(signature: Bytes) -> Result<Bytes, Box<dyn Error>> {
-    let key_path: packed::Bytes = signature.pack();
-    let key_path2: packed::BytesOpt = BytesOpt::new_builder().set(Some(key_path)).build();
-    let builder = taproot_molecule::TaprootLockWitnessLock::new_builder().signature(key_path2);
-    let b = builder.build().as_bytes();
-    let res = vec![0u8; b.len()];
-    Ok(res.into())
+    let builder =
+        taproot_molecule::TaprootLockWitnessLock::new_builder().signature(Some(signature).pack());
+    Ok(builder.build().as_bytes())
 }
 
 /*
@@ -435,9 +448,8 @@ pub fn generate_witness_lock_placeholder(smt_proof: &Bytes) -> Bytes {
 // for key path spending
 pub fn generate_witness_lock_placeholder2() -> Bytes {
     let signature: Bytes = vec![0; SCHNORRSIG_PUBLIC_KEY_SIZE + SCHNORRSIG_SIGNATURE_SIZE].into();
-    let key_path: packed::Bytes = signature.pack();
-    let key_path2: packed::BytesOpt = BytesOpt::new_builder().set(Some(key_path)).build();
-    let builder = taproot_molecule::TaprootLockWitnessLock::new_builder().signature(key_path2);
+    let builder =
+        taproot_molecule::TaprootLockWitnessLock::new_builder().signature(Some(signature).pack());
     let b = builder.build().as_bytes();
     let res = vec![0u8; b.len()];
     res.into()

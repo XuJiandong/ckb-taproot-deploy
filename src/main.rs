@@ -1,5 +1,5 @@
 use ckb_taproot_deploy::config::JsonConfig;
-use ckb_taproot_deploy::unlock_taproot::unlock_taproot;
+use ckb_taproot_deploy::unlock_taproot::{unlock_taproot, unlock_taproot2};
 use ckb_taproot_deploy::utils::{as_hex, as_hex_switch_endian, hex2bin};
 use ckb_taproot_deploy::Auth;
 use env_logger;
@@ -41,6 +41,7 @@ enum Commands {
     TransferTaproot(TransferTaproot),
     SchnorrOperation(SchnorrOperation),
     TransferSecp256k1(TransferSecp256k1),
+    TransferSecp256k1_2(TransferSecp256k1_2),
 }
 
 #[derive(Args)]
@@ -68,7 +69,9 @@ enum OperationMode {
 }
 
 #[derive(Args)]
-#[clap(long_about = "Transfer CKB from taproot cells to Secp256k1 cells")]
+#[clap(
+    long_about = "Transfer CKB from taproot cells to Secp256k1 cells, using script path spending"
+)]
 struct TransferSecp256k1 {
     /// the secret key used in exec script. Schnorr secret key
     #[clap(long, value_name = "KEY")]
@@ -85,6 +88,21 @@ struct TransferSecp256k1 {
 
     #[clap(long, value_name = "TAPROOT INTERNAL KEY")]
     taproot_internal_key: H256,
+
+    /// The receiver CKB address
+    #[clap(long, value_name = "ADDRESS")]
+    receiver: Address,
+
+    /// The capacity to transfer (unit: CKB, example: 102.43)
+    #[clap(long, value_name = "CKB")]
+    capacity: HumanCapacity,
+}
+
+#[derive(Args)]
+#[clap(long_about = "Transfer CKB from taproot cells to Secp256k1 cells, using key path spending")]
+struct TransferSecp256k1_2 {
+    #[clap(long, value_name = "SCHNORR SECRET KEY")]
+    sender_key: H256,
 
     /// The receiver CKB address
     #[clap(long, value_name = "ADDRESS")]
@@ -198,6 +216,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 c.capacity.0,
             )?;
             info!("unlock_taproot done.");
+            return Ok(());
+        }
+        Commands::TransferSecp256k1_2(c) => {
+            info!("Transfer to Address = {}", c.receiver);
+            unlock_taproot2(&config, &c.sender_key, c.receiver.clone(), c.capacity.0)?;
+            info!("unlock_taproot2 done.");
             return Ok(());
         }
         Commands::GenerateKeys(_) => {
