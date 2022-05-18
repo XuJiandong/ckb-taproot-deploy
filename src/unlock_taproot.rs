@@ -324,9 +324,7 @@ pub fn transfer_secp256k1_2(
 }
 
 pub fn build_taproot_signature(
-    execscript_code_hash: H256,
-    execscript_hash_type: u8,
-    execscript_args: Bytes,
+    exec_script: Script,
     taproot_internal_key: H256,
     smt_root: H256,
     smt_proof: Bytes,
@@ -334,12 +332,7 @@ pub fn build_taproot_signature(
 ) -> Result<Bytes, Box<dyn Error>> {
     let secp = Secp256k1::new();
 
-    let script = Script::new_builder()
-        .args(execscript_args.pack())
-        .code_hash(execscript_code_hash.pack())
-        .hash_type(execscript_hash_type.try_into()?)
-        .build();
-    let hash = script.calc_script_hash();
+    let hash = exec_script.calc_script_hash();
     let mut hash32 = [0u8; 32];
     hash32.copy_from_slice(hash.as_slice());
 
@@ -352,7 +345,7 @@ pub fn build_taproot_signature(
 
     let success = verify_smt_on_wl(&vec![hash32], smt_root.0.into(), smt_proof.clone().to_vec());
     if !success {
-        error!("SMT verify failed, {} is not on SMT tree", script);
+        error!("SMT verify failed, {} is not on SMT tree", exec_script);
         return Err(format!("SMT verify failed").into());
     }
 
@@ -365,12 +358,6 @@ pub fn build_taproot_signature(
     let y_parity = taproot_output_key.tweak_add_assign(&secp, real_tweak32.as_ref())?;
     let y_parity: u8 = if y_parity { 1 } else { 0 };
     let taproot_output_key: H256 = taproot_output_key.serialize().into();
-
-    let exec_script = Script::new_builder()
-        .code_hash(execscript_code_hash.pack())
-        .hash_type(execscript_hash_type.into())
-        .args(execscript_args.pack())
-        .build();
 
     let script_path = taproot_molecule::TaprootScriptPath::new_builder()
         .taproot_output_key(taproot_output_key.pack())
@@ -398,7 +385,7 @@ pub fn build_taproot_signature2(signature: Bytes) -> Result<Bytes, Box<dyn Error
 /*
 for script path spending:
 args -> exec_script.args: it should be 21 bytes long (auth).
-args2: place signature for exec_script. The signature is 32+64 bytes
+args2: place signature for exec_script. The signature length is 32+64 bytes.
 
 table TaprootScriptPath {
     taproot_output_key: Byte32,

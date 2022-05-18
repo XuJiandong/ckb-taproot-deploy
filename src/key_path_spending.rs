@@ -52,14 +52,12 @@ impl KeyPathSpending {
         let witness_lock = build_taproot_signature2(signature).unwrap();
         if placeholder_length != witness_lock.len() {
             error!("The length of witness lock and its placeholder are not same: witness_lock_placeholder.len() = {} vs witness_lock.len() = {}", placeholder_length, witness_lock.len());
-            return Err(ScriptSignError::Other(
-                format!(
-                    "placeholder length mismatched: {} vs {}",
-                    placeholder_length,
-                    witness_lock.len()
-                )
-                .into(),
-            ));
+            let msg = format!(
+                "placeholder length mismatched: {} vs {}",
+                placeholder_length,
+                witness_lock.len()
+            );
+            return Err(ScriptSignError::Other(msg.into()));
         }
         // Put signature into witness
         let witness_data = witnesses[witness_idx].raw_data();

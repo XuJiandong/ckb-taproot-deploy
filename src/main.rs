@@ -30,7 +30,7 @@ struct Cli {
     /// Dry run, don't send tx
     dry_run: bool,
 
-    #[clap(long, default_value_t = String::from("taproot-config.json"))]
+    #[clap(long, short='c', default_value_t = String::from("taproot-config.json"))]
     /// config file path in json format
     config: String,
 }
@@ -51,10 +51,10 @@ struct GenerateKeys {}
 #[derive(Args)]
 #[clap(long_about = "Operations on schnorr keys, e.g. generate public key/address")]
 struct SchnorrOperation {
-    #[clap(long, value_name = "SECRET_KEY")]
+    #[clap(long, value_name = "HEX")]
     secret_key: H256,
 
-    #[clap(long)]
+    #[clap(long, value_name = "HEX")]
     tweak: Option<H256>,
 
     #[clap(long, arg_enum)]
@@ -74,19 +74,19 @@ enum OperationMode {
 )]
 struct TransferSecp256k1 {
     /// the secret key used in exec script. Schnorr secret key
-    #[clap(long, value_name = "KEY")]
+    #[clap(long, value_name = "HEX")]
     execscript_key: H256,
 
     #[clap(long)]
     execscript_args: String,
 
-    #[clap(long, value_name = "SMT ROOT")]
+    #[clap(long, value_name = "HEX")]
     smt_root: H256,
 
-    #[clap(long, value_name = "SMT PROOF")]
+    #[clap(long, value_name = "HEX")]
     smt_proof: String,
 
-    #[clap(long, value_name = "TAPROOT INTERNAL KEY")]
+    #[clap(long, value_name = "HEX")]
     taproot_internal_key: H256,
 
     /// The receiver CKB address
@@ -94,14 +94,14 @@ struct TransferSecp256k1 {
     receiver: Address,
 
     /// The capacity to transfer (unit: CKB, example: 102.43)
-    #[clap(long, value_name = "CKB")]
+    #[clap(long, value_name = "VALUE")]
     capacity: HumanCapacity,
 }
 
 #[derive(Args)]
 #[clap(long_about = "Transfer CKB from taproot cells to Secp256k1 cells, using key path spending")]
 struct TransferSecp256k1_2 {
-    #[clap(long, value_name = "SCHNORR SECRET KEY")]
+    #[clap(long, value_name = "HEX")]
     sender_key: H256,
 
     /// The receiver CKB address
@@ -109,7 +109,7 @@ struct TransferSecp256k1_2 {
     receiver: Address,
 
     /// The capacity to transfer (unit: CKB, example: 102.43)
-    #[clap(long, value_name = "CKB")]
+    #[clap(long, value_name = "VALUE")]
     capacity: HumanCapacity,
 }
 
@@ -117,20 +117,20 @@ struct TransferSecp256k1_2 {
 #[clap(long_about = "Transfer CKB from Secp256k1 cells to taproot cells")]
 struct TransferTaproot {
     /// The sender's secp256k1 private key(e.g. 0AEF01...)
-    #[clap(long, value_name = "KEY")]
+    #[clap(long, value_name = "HEX")]
     sender_key: H256,
 
     /// The 21-byte auth(receiver's schnorr public key hash)
     /// Use `SchnorrOperation` lock-script-args` to get this address
-    #[clap(long, value_name = "ARGS")]
+    #[clap(long, value_name = "HEX")]
     execscript_args: String,
 
     /// taproot internal key (schnorr public key)
-    #[clap(long, value_name = "PUBLIC KEY")]
+    #[clap(long, value_name = "HEX")]
     taproot_internal_key: H256,
 
     /// The capacity to transfer (unit: CKB, example: 102.43)
-    #[clap(long, value_name = "CKB")]
+    #[clap(long, value_name = "VALUE")]
     capacity: HumanCapacity,
 }
 
@@ -173,7 +173,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             OperationMode::GenerateTaprootOutputKey => {
                 if op.tweak.is_none() {
-                    println!("error, must provide tweak");
+                    return Err("must provide tweak".into());
                 }
                 let secp = Secp256k1::new();
                 let secret_key = SecretKey::from_slice(op.secret_key.as_ref()).expect("secret key");

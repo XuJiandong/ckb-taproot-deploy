@@ -11,7 +11,7 @@ use ckb_sdk::{
 use ckb_types::{
     bytes::Bytes,
     core::TransactionView,
-    packed::{self, WitnessArgs},
+    packed::{self, Script, WitnessArgs},
     prelude::*,
     H256,
 };
@@ -138,10 +138,14 @@ impl ScriptPathSpendingSigner {
         let message = generate_message(&tx_new, script_group, witness_lock_placeholder)?;
         let signature = self.signer.sign(owner_id, message.as_ref(), false, tx)?;
 
+        let exec_script = Script::new_builder()
+            .code_hash(self.execscript_code_hash.pack())
+            .hash_type(self.execscript_hash_type.try_into().unwrap())
+            .args(self.execscript_args.pack())
+            .build();
+
         let witness_lock = build_taproot_signature(
-            self.execscript_code_hash.clone(),
-            self.execscript_hash_type,
-            self.execscript_args.clone(),
+            exec_script,
             self.taproot_internal_key.clone(),
             self.smt_root.clone(),
             self.smt_proof.clone(),
@@ -150,14 +154,12 @@ impl ScriptPathSpendingSigner {
         .unwrap();
         if placeholder_length != witness_lock.len() {
             error!("The length of witness lock and its placeholder are not same: witness_lock_placeholder.len() = {} vs witness_lock.len() = {}", placeholder_length, witness_lock.len());
-            return Err(ScriptSignError::Other(
-                format!(
-                    "placeholder length mismatched: {} vs {}",
-                    placeholder_length,
-                    witness_lock.len()
-                )
-                .into(),
-            ));
+            let msg = format!(
+                "placeholder length mismatched: {} vs {}",
+                placeholder_length,
+                witness_lock.len()
+            );
+            return Err(ScriptSignError::Other(msg.into()));
         }
         // Put signature into witness
         let witness_data = witnesses[witness_idx].raw_data();
